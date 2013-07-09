@@ -22,16 +22,36 @@ References:
 */
 
 var fs = require('fs');
+var sys = require('util');
 var program = require('commander');
 var cheerio = require('cheerio');
+var restler = require('restler');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+
+var assertURLExists = function(infile) {
+    var instr = infile.toString();
+    if (instr) {
+        restler.get(instr).on('complete', function(result) {
+              if (result instanceof Error) {
+                console.log("Error: " + result.message);
+                process.exit(1); // http://nodejs.org/api/process.html#process_process_exit_code
+              }
+              saved=fs.writeFileSync('bla.html',result,'utf8');
+              var checkJson = checkHtmlFile('bla.html', program.checks);
+              var outJson = JSON.stringify(checkJson, null, 4);
+              console.log(outJson);
+              fs.unlinkSync('bla.html');
+          });
+        return infile.toString();
+    }
+    return instr;
+};
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
     if(!fs.existsSync(instr)) {
-        console.log("%s does not exist. Exiting.", instr);
-        process.exit(1); // http://nodejs.org/api/process.html#process_process_exit_code
+        return "";
     }
     return instr;
 };
@@ -61,14 +81,28 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var logChecks = function(filepath) {
+    //Log Checks from file or downloaded file
+    var checkJson = checkHtmlFile(filepath, program.checks);
+    var outJson = JSON.stringify(checkJson, null, 4);
+    console.log(outJson);
+};
+
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-u, --url <url_html_file>', 'URL of html to check', clone(assertURLExists), "")
+        .option('-f, --file <html_file>', 'Path to html (if no URL)', clone(assertFileExists), HTMLFILE_DEFAULT)
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    if (program.url.length==0) { //No URL?  Make sure we have a file then
+        if (assertFileExists(program.file)) { //URLs are handled in a callback, do files here
+            logChecks(program.file);
+        }
+        else { 
+            console.log("No URL or file specified. Exiting.", instr);
+            process.exit(1); // http://nodejs.org/api/process.html#process_process_exit_code
+        }
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
