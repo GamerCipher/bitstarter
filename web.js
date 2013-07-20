@@ -7,7 +7,7 @@ var serveFile= function(response,fname) {
     response.send(data.toString());
   });
 };
-
+app.use(express.static(__dirname));
 app.get('/', function(request, response) {
   serveFile(response,'index.html');  
 });
